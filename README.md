@@ -79,6 +79,12 @@ likely mislabels. It writes three CSVs into `output/`:
 - `mislabels_remaining.csv` — people still tagged `HE` that were *not* flagged
   (the review queue for misses the heuristic can't catch, e.g. non-Slavic
   surnames like `-дзе`, `-ко`, indeclinable).
+- `women_authors.csv` — every question author who is a woman after correction,
+  one row per id, name split into `first_name` / `patronymic` / `last_name`,
+  sorted by last name.
+
+Team/group names (`Команда …`, `Сборная …`, quoted `«…»`) are treated as
+non-persons and never flagged.
 
 ```bash
 just mislabels          # → output/*.csv   (uv run detect_mislabels.py)
@@ -155,6 +161,7 @@ output/mislabels_corrected.csv    # the HE→SE flips, with role counts (read by
 output/mislabels_corrected.txt    # same, names only
 output/mislabels_remaining.csv    # still-HE, unflagged (review queue)
 output/mislabels_remaining.txt    # same, names only
+output/women_authors.csv          # women question authors (id, first/patronymic/last)
 output/women_editors_report.html  # generated static report
 ```
 

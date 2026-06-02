@@ -34,6 +34,31 @@ OUT_CORRECTED = OUTPUT_DIR / "mislabels_corrected.csv"
 OUT_REMAINING = OUTPUT_DIR / "mislabels_remaining.csv"
 OUT_CORRECTED_TXT = OUTPUT_DIR / "mislabels_corrected.txt"
 OUT_REMAINING_TXT = OUTPUT_DIR / "mislabels_remaining.txt"
+OUT_WOMEN_AUTHORS = OUTPUT_DIR / "women_authors.csv"
+
+# Female patronymic suffixes used to pull a patronymic token out of a full name.
+# Only female forms (these are women): male-form -ович/-евич are *surname*
+# suffixes here (Belarusian: Казакевич, Каганович), not patronymics.
+PATRONYMIC_ENDINGS = ("овна", "ёвна", "евна", "ична", "инична")
+
+
+def split_name(name: str):
+    """Split 'Имя [Отчество] Фамилия' into (first, patronymic, last). Falls back
+    gracefully for 1-token or compound names; patronymic is '' when absent."""
+    parts = name.split()
+    if not parts:
+        return "", "", ""
+    if len(parts) == 1:
+        return parts[0], "", ""
+    first, rest = parts[0], parts[1:]
+    patronymic = ""
+    for i, tok in enumerate(rest):
+        if tok.endswith(PATRONYMIC_ENDINGS):
+            patronymic = tok
+            rest = rest[:i] + rest[i + 1 :]
+            break
+    last = " ".join(rest)
+    return first, patronymic, last
 
 WOMAN_FIRST = {
     "Юлия", "Юля", "Мария", "Маша", "Анна", "Аня", "Елена", "Лена", "Ольга",
@@ -87,22 +112,33 @@ def man_surname(s: str) -> bool:
 
 def collect_people():
     """Tally each person: total appearances, gender tag(s), and per-role counts
-    (questions authored vs. editor roles held)."""
+    (questions authored vs. editor roles held). Also tracks question authors by
+    id (id -> name counter, gender tags, question count)."""
     appearances: collections.Counter = collections.Counter()
     author_q: collections.Counter = collections.Counter()
     editor_roles: collections.Counter = collections.Counter()
     tags: dict = collections.defaultdict(set)
+    authors_by_id: dict = {}
 
     def add(people, *, role):
         for p in people or []:
             name = p.get("name")
-            if name:
-                appearances[name] += 1
-                tags[name].add(p.get("gender"))
-                if role == "author":
-                    author_q[name] += 1
-                else:
-                    editor_roles[name] += 1
+            if not name:
+                continue
+            appearances[name] += 1
+            tags[name].add(p.get("gender"))
+            if role == "author":
+                author_q[name] += 1
+                aid = p.get("id")
+                if aid is not None:
+                    rec = authors_by_id.setdefault(
+                        aid, {"names": collections.Counter(), "genders": set(), "q": 0}
+                    )
+                    rec["names"][name] += 1
+                    rec["genders"].add(p.get("gender"))
+                    rec["q"] += 1
+            else:
+                editor_roles[name] += 1
 
     for path in sorted(DATA_PACKS.glob("*.json")):
         pk = json.loads(path.read_text(encoding="utf-8"))
@@ -112,7 +148,7 @@ def collect_people():
             for q in tour.get("questions", []):
                 add(q.get("authors"), role="author")
                 add(q.get("editors"), role="editor")
-    return appearances, tags, author_q, editor_roles
+    return appearances, tags, author_q, editor_roles, authors_by_id
 
 
 def classify(appearances, tags):
@@ -158,7 +194,7 @@ def main() -> None:
     if not DATA_PACKS.exists() or not any(DATA_PACKS.glob("*.json")):
         raise SystemExit("No packs found. Run `download.py packs` first.")
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    appearances, tags, author_q, editor_roles = collect_people()
+    appearances, tags, author_q, editor_roles, authors_by_id = collect_people()
     rows = classify(appearances, tags)
 
     # Corrected list — every flagged person (the gender flips the analysis
@@ -191,6 +227,31 @@ def main() -> None:
         w.writerow(["name", "appearances", "author_questions", "editor_roles"])
         w.writerows(remaining)
 
+    # Women authors — everyone who authored a question and is a woman after
+    # correction (raw SE, or a flagged woman_tagged_HE). One row per author id,
+    # name split into first / patronymic / last, sorted by last name.
+    flagged_women = {r[3] for r in rows if r[0] == "woman_tagged_HE"}
+    wa_rows = []
+    for aid, rec in authors_by_id.items():
+        name = rec["names"].most_common(1)[0][0]
+        if is_non_person(name):
+            continue
+        corrected_woman = ("SE" in rec["genders"]) or (name in flagged_women)
+        if not corrected_woman:
+            continue
+        first, patronymic, last = split_name(name)
+        was_corrected = "SE" not in rec["genders"]  # woman only via HE->SE fix
+        wa_rows.append(
+            [aid, first, patronymic, last, name, rec["q"], "yes" if was_corrected else "no"]
+        )
+    wa_rows.sort(key=lambda r: (r[3], r[1]))  # last name, then first name
+    with OUT_WOMEN_AUTHORS.open("w", newline="", encoding="utf-8") as fh:
+        w = csv.writer(fh)
+        w.writerow(
+            ["id", "first_name", "patronymic", "last_name", "full_name", "questions", "corrected"]
+        )
+        w.writerows(wa_rows)
+
     # Plain-text name lists (one per line), same order as the CSVs.
     OUT_CORRECTED_TXT.write_text(
         "\n".join(r[3] for r in corrected) + "\n", encoding="utf-8"
@@ -205,9 +266,10 @@ def main() -> None:
     print(
         f"Scanned {n_packs} packs. "
         f"Corrected (woman-tagged-HE: {n_woman}, man-tagged-SE: {n_man}). "
-        f"Remaining HE (unflagged): {len(remaining)}.\n"
-        f"Wrote mislabels_corrected.csv/.txt and mislabels_remaining.csv/.txt "
-        f"to {OUTPUT_DIR.name}/"
+        f"Remaining HE (unflagged): {len(remaining)}. "
+        f"Women authors: {len(wa_rows)}.\n"
+        f"Wrote mislabels_corrected.csv/.txt, mislabels_remaining.csv/.txt, "
+        f"women_authors.csv to {OUTPUT_DIR.name}/"
     )
 
 
