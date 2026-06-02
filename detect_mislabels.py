@@ -66,6 +66,16 @@ MAN_FIRST = {
 WOMAN_SURNAME_ENDINGS = ("ова", "ёва", "ева", "ина", "ына", "ская", "цкая", "ная", "няя")
 MAN_SURNAME_ENDINGS = ("ов", "ёв", "ев", "ин", "ын", "ский", "цкий", "ной", "ный")
 
+# Non-person entries (teams/groups) — these have no gender and must never be
+# flagged. They otherwise trip the morphology rules ("Команда ...ова" looks
+# feminine). Detected by a leading team word or a quoted team name.
+TEAM_WORDS = {"Команда", "Команды", "Сборная", "Дуэт", "Группа", "Клуб", "Гильдия", "Лига", "Дети"}
+
+
+def is_non_person(name: str) -> bool:
+    toks = name.split()
+    return bool(toks) and (toks[0] in TEAM_WORDS or "«" in name)
+
 
 def woman_surname(s: str) -> bool:
     return s.endswith(WOMAN_SURNAME_ENDINGS)
@@ -108,6 +118,8 @@ def collect_people():
 def classify(appearances, tags):
     rows = []
     for name, cnt in appearances.items():
+        if is_non_person(name):
+            continue
         gs = tags[name]
         parts = name.split()
         first = parts[0]
@@ -170,7 +182,7 @@ def main() -> None:
         (
             (name, appearances[name], author_q[name], editor_roles[name])
             for name in appearances
-            if "HE" in tags[name] and name not in flagged
+            if "HE" in tags[name] and name not in flagged and not is_non_person(name)
         ),
         key=lambda r: -r[1],
     )

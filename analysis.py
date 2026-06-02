@@ -85,9 +85,15 @@ def _():
     }
 
     def pretty(df):
-        return df.rename(
+        # Rename to human headers and promote the first column to the index, so
+        # tables show a meaningful key on the left instead of a 0..N row number
+        # (marimo 0.23.8 has no hide-index option).
+        out = df.rename(
             columns=lambda c: LABELS.get(c, str(c).replace("_", " ").capitalize())
         )
+        if len(out.columns):
+            out = out.set_index(out.columns[0])
+        return out
 
     return HERE, PACKS_DIR, WOMAN, alt, gzip, io, json, mo, pd, pretty, urllib
 
