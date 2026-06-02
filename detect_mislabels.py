@@ -240,16 +240,11 @@ def main() -> None:
         if not corrected_woman:
             continue
         first, patronymic, last = split_name(name)
-        was_corrected = "SE" not in rec["genders"]  # woman only via HE->SE fix
-        wa_rows.append(
-            [aid, first, patronymic, last, name, rec["q"], "yes" if was_corrected else "no"]
-        )
+        wa_rows.append([aid, first, patronymic, last, name])
     wa_rows.sort(key=lambda r: (r[3], r[1]))  # last name, then first name
     with OUT_WOMEN_AUTHORS.open("w", newline="", encoding="utf-8") as fh:
         w = csv.writer(fh)
-        w.writerow(
-            ["id", "first_name", "patronymic", "last_name", "full_name", "questions", "corrected"]
-        )
+        w.writerow(["id", "first_name", "patronymic", "last_name", "full_name"])
         w.writerows(wa_rows)
 
     # Plain-text name lists (one per line), same order as the CSVs.
