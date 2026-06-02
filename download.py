@@ -94,7 +94,7 @@ def download_listing(session: niquests.Session, delay: float) -> None:
     else:
         first = get_json(session, f"{LISTING_URL}?page=1")
         first_path.write_text(
-            json.dumps(first, ensure_ascii=False), encoding="utf-8"
+            json.dumps(first, ensure_ascii=False, indent=2), encoding="utf-8"
         )
         throttle(delay)
 
@@ -107,7 +107,9 @@ def download_listing(session: niquests.Session, delay: float) -> None:
         if path.exists():
             continue
         data = get_json(session, f"{LISTING_URL}?page={page}")
-        path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+        path.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
         throttle(delay)
 
 
@@ -156,7 +158,7 @@ def download_packs(session: niquests.Session, delay: float, scope: str) -> None:
             tqdm.write(f"  ✗ giving up on pack {pid} ({exc}); will retry on re-run")
             continue
         (PACKS_DIR / f"{pid}.json").write_text(
-            json.dumps(data, ensure_ascii=False), encoding="utf-8"
+            json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
         )
         throttle(delay)
 
