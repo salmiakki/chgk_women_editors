@@ -1227,7 +1227,7 @@ def _(WOMAN, gender_fix, packs, pd):
 @app.cell
 def _(man_editor_breakdown, mo, pretty):
     mo.ui.table(
-        pretty(man_editor_breakdown.nlargest(100, "women_credits")),
+        pretty(man_editor_breakdown.nlargest(100, "women_credits").reset_index(drop=True)),
         label="Man editors by women-author credits (top 100)",
     )
     return
