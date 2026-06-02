@@ -12,7 +12,7 @@ Run with:
 import marimo
 
 __generated_with = "0.23.8"
-app = marimo.App(width="medium")
+app = marimo.App(width="medium", app_title="ЧГК — women editors & question-author genders")
 
 
 @app.cell
