@@ -1081,14 +1081,16 @@ def _(mo):
 
 @app.cell
 def _(WOMAN, gender_fix, mo, packs):
-    # Women editors by corrected gender (HE->SE fixes applied).
+    # Women editors by corrected gender (HE->SE fixes applied), sorted by last
+    # name (last token), then full name.
     women_editors = sorted(
         {
             e["name"]
             for pk in packs
             for e in pk.get("editors", [])
             if gender_fix.get(e.get("name"), e.get("gender")) == WOMAN
-        }
+        },
+        key=lambda n: (n.split()[-1] if n.split() else n, n),
     )
     editor_select = mo.ui.dropdown(
         options=women_editors,
