@@ -6,6 +6,11 @@ how packs map to tournaments.
 
 *Prepared for Lesha Pak, using GotQuestions ([gotquestions.online](https://gotquestions.online)) data.*
 
+**Live interactive notebook (no install):**
+**https://salmiakki.github.io/chgk_women_editors/** — a kernel-less WASM build
+(marimo + Pyodide) that runs entirely in the browser, with a baked reduced
+dataset. Rebuild & redeploy with `just deploy`.
+
 The site exposes a clean Django REST API, so no HTML parsing is needed:
 
 - `GET /api/packs/?page=N` — paginated pack index (~6,701 packs). Each entry

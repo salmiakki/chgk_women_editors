@@ -73,6 +73,21 @@ wasm: mislabels
 wasm-serve:
     python -m http.server --directory output/wasm 8000
 
+# Build the WASM site and deploy output/wasm/ to the gh-pages branch (Pages)
+deploy: wasm
+    #!/usr/bin/env bash
+    set -euo pipefail
+    tmp=$(mktemp -d)
+    cp -R output/wasm/. "$tmp"/
+    touch "$tmp/.nojekyll"
+    git -C "$tmp" init -q -b gh-pages
+    git -C "$tmp" add -A
+    git -C "$tmp" -c user.email="$(git config user.email)" \
+        -c user.name="$(git config user.name)" commit -q -m "Deploy WASM notebook"
+    git -C "$tmp" push -q --force "$(git remote get-url origin)" gh-pages
+    rm -rf "$tmp"
+    echo "Deployed → GitHub Pages (gh-pages branch)"
+
 # --- Housekeeping -----------------------------------------------------------
 
 # How much has been downloaded so far
