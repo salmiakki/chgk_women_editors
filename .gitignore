@@ -1,0 +1,32 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Scraped payloads (regenerable via download.py)
+data/
+
+# Generated analysis artifacts (regenerable via detect_mislabels.py / just report)
+output/
+
+# marimo edit-server / export artifacts (not part of the project)
+__marimo__/
+assets/
+.nojekyll
+report_interactive.html
+CLAUDE.md
+logo.png
+manifest.json
+site.webmanifest
+favicon.ico
+favicon-16x16.png
+favicon-32x32.png
+apple-touch-icon.png
+android-chrome-192x192.png
+android-chrome-512x512.png

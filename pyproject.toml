@@ -1,0 +1,13 @@
+[project]
+name = "women-editors"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.12"
+dependencies = [
+    "altair>=6.1.0",
+    "marimo>=0.23.8",
+    "niquests>=3.19.0",
+    "pandas>=3.0.3",
+    "pyarrow>=24.0.0",
+    "tqdm>=4.67.3",
+]
