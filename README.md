@@ -100,8 +100,8 @@ The notebook (sections):
    codes present, an author roster, and the mislabel table loaded
    from `output/mislabels_corrected.csv`.
 2. **Packs ↔ tournaments** — a *pack* is one question set; a *tournament* is a
-   scheduled run of it. Distribution of tournaments-per-pack and tournament
-   types, whole corpus vs woman-edited.
+   scheduled run of it. Distribution of tournaments-per-pack, whole corpus vs
+   woman-edited.
 3. **Author genders by tour-editor composition** — author-credit gender mix in
    tours that are *women-only*, *mixed*, *men-only*, or *no editors*.
 4. **Each woman editor: own vs. other women vs. men** — for tours she

@@ -17,14 +17,22 @@ app = marimo.App(width="medium")
 
 @app.cell
 def _():
+    import gzip
+    import io
     import json
+    import urllib.request
     from pathlib import Path
 
     import altair as alt
     import marimo as mo
     import pandas as pd
 
-    PACKS_DIR = Path(__file__).parent / "data" / "packs"
+    # `__file__` is undefined when running in the browser (WASM/Pyodide).
+    try:
+        HERE = Path(__file__).parent
+    except NameError:
+        HERE = Path(".")
+    PACKS_DIR = HERE / "data" / "packs"
     WOMAN = "SE"  # woman's gender code on the site; "HE" is man
 
     # Human-readable column headers for displayed tables. The underlying frames
@@ -81,7 +89,7 @@ def _():
             columns=lambda c: LABELS.get(c, str(c).replace("_", " ").capitalize())
         )
 
-    return PACKS_DIR, WOMAN, alt, json, mo, pd, pretty
+    return HERE, PACKS_DIR, WOMAN, alt, gzip, io, json, mo, pd, pretty, urllib
 
 
 @app.cell
@@ -105,28 +113,39 @@ def _(mo):
 
 
 @app.cell
-def _(PACKS_DIR, json):
-    # Load every downloaded pack payload.
-    packs = [
-        json.loads(p.read_text(encoding="utf-8"))
-        for p in sorted(PACKS_DIR.glob("*.json"))
-    ]
+def _(PACKS_DIR, gzip, json, mo, urllib):
+    # Load pack payloads. Locally: the full JSON in data/packs/. When served as
+    # a kernel-less WASM notebook (no local files), fall back to the baked,
+    # reduced dataset shipped in public/ — fetched relative to the notebook via
+    # mo.notebook_location() (works for both file:// dev and http hosting).
+    _files = sorted(PACKS_DIR.glob("*.json"))
+    if _files:
+        packs = [json.loads(p.read_text(encoding="utf-8")) for p in _files]
+    else:
+        _url = str(mo.notebook_location() / "public" / "packs_reduced.json.gz")
+        _raw = urllib.request.urlopen(_url).read()
+        packs = json.loads(gzip.decompress(_raw).decode("utf-8"))
     return (packs,)
 
 
 @app.cell
-def _(Path, pd):
+def _(HERE, io, mo, pd, urllib):
     # Load the mislabel list produced by `detect_mislabels.py` (regenerate with
-    # `just mislabels`). Reading it here means re-running this notebook after
-    # refreshing the CSV pulls in the latest corrections automatically.
+    # `just mislabels`). Locally from output/; when served WASM-style, from the
+    # baked copy in public/. Re-running picks up the latest corrections.
     #
     # gender_fix maps a name -> corrected gender, applied to the confidence
     # tiers in CORRECT_TIERS.
     CORRECT_TIERS = {"very high", "high", "medium"}
-    _csv = Path(__file__).parent / "output" / "mislabels_corrected.csv"
-    if _csv.exists():
-        mislabels_df = pd.read_csv(_csv)
-    else:
+    _local = HERE / "output" / "mislabels_corrected.csv"
+    try:
+        if _local.exists():
+            mislabels_df = pd.read_csv(_local)
+        else:
+            _url = str(mo.notebook_location() / "public" / "mislabels_corrected.csv")
+            _text = urllib.request.urlopen(_url).read().decode("utf-8")
+            mislabels_df = pd.read_csv(io.StringIO(_text))
+    except Exception:
         mislabels_df = pd.DataFrame(
             columns=[
                 "name",
@@ -486,26 +505,6 @@ def _(mo, packs_df, pd, pretty, tournaments_df):
             mo.ui.table(pretty(per_pack), label="Tournaments per pack"),
         ]
     )
-    return
-
-
-@app.cell
-def _(mo, pretty, tournaments_df):
-    # Tournament type breakdown (each tournament counted once).
-    _uniq = tournaments_df.drop_duplicates("tournament_id")
-    _all = _uniq["tournament_type"].value_counts(dropna=False)
-    _w = _uniq[_uniq.woman_edited]["tournament_type"].value_counts(dropna=False)
-    types_tbl = (
-        _all.rename("all_packs")
-        .to_frame()
-        .join(_w.rename("woman_edited_packs"))
-        .fillna(0)
-        .astype(int)
-        .rename_axis("tournament_type")
-        .reset_index()
-        .sort_values("all_packs", ascending=False)
-    )
-    mo.ui.table(pretty(types_tbl), label="Tournament types (distinct tournaments)")
     return
 
 

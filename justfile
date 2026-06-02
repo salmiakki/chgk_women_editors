@@ -63,6 +63,16 @@ report-with-code:
     mkdir -p output
     uv run marimo export html analysis.py -o {{report}}
 
+# Build a kernel-less interactive WASM notebook (Pyodide) with baked data,
+# into output/wasm/ — serve as static files (e.g. GitHub Pages).
+wasm: mislabels
+    uv run marimo export html-wasm analysis.py -o output/wasm --mode run --no-show-code -f
+    uv run bake_wasm.py
+
+# Serve the built WASM notebook locally (must be over HTTP, not file://)
+wasm-serve:
+    python -m http.server --directory output/wasm 8000
+
 # --- Housekeeping -----------------------------------------------------------
 
 # How much has been downloaded so far
