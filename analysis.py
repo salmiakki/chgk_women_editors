@@ -82,6 +82,11 @@ def _():
         "pack_title": "Pack",
         "SE": "Women (SE)",
         "HE": "Men (HE)",
+        "person_a": "Person A",
+        "person_b": "Person B",
+        "a_edits_b": "A edits B",
+        "b_edits_a": "B edits A",
+        "total": "Total",
     }
 
     def pretty(df):
@@ -1391,41 +1396,76 @@ def _(WOMAN, gender_fix, packs, pd):
         t = (n or "").split()
         return bool(t) and t[0] not in _TEAM and "«" not in n
 
+    # Pairs are keyed by (editor_id, author_id) so same-named people are not
+    # conflated; names/genders are resolved per id afterwards.
     _rows = []
+    _id_name = {}
+    _id_gender = {}
     for _pk in packs:
         for _t in _pk.get("tours", []):
             _weds = [
-                (e["id"], e.get("name"))
+                e["id"]
                 for e in _t.get("editors", [])
                 if gender_fix.get(e.get("name"), e.get("gender")) == WOMAN
+                and (_id_name.setdefault(e["id"], e.get("name")) or True)
             ]
             if not _weds:
                 continue
             for _q in _t.get("questions", []):
                 for _a in _q.get("authors", []) or []:
                     _aid, _an = _a.get("id"), _a.get("name")
-                    if not _is_person(_an):
+                    if _aid is None or not _is_person(_an):
                         continue
-                    _ag = gender_fix.get(_an, _a.get("gender"))
-                    for _eid, _en in _weds:
+                    _id_name.setdefault(_aid, _an)
+                    _id_gender.setdefault(_aid, gender_fix.get(_an, _a.get("gender")))
+                    for _eid in _weds:
                         if _aid != _eid:
-                            _rows.append((_en, _an, _ag))
+                            _rows.append((_eid, _aid))
     collab_pairs = (
-        pd.DataFrame(_rows, columns=["editor", "author", "author_gender"])
-        .groupby(["editor", "author", "author_gender"])
+        pd.DataFrame(_rows, columns=["editor_id", "author_id"])
+        .groupby(["editor_id", "author_id"])
         .size()
         .rename("questions")
         .reset_index()
-        .sort_values("questions", ascending=False)
-        .reset_index(drop=True)
+    )
+    collab_pairs["editor"] = collab_pairs["editor_id"].map(_id_name)
+    collab_pairs["author"] = collab_pairs["author_id"].map(_id_name)
+    collab_pairs["author_gender"] = collab_pairs["author_id"].map(_id_gender)
+    collab_pairs = collab_pairs.sort_values("questions", ascending=False).reset_index(
+        drop=True
     )
     women_pairs = collab_pairs[collab_pairs.author_gender == WOMAN].reset_index(drop=True)
     men_pairs = collab_pairs[collab_pairs.author_gender == "HE"].reset_index(drop=True)
-    return men_pairs, women_pairs
+
+    # Reciprocal woman↔woman pairs: both edit each other's questions. Surfaces
+    # who edits whom (the two directions side by side). Only women-women pairs
+    # can be reciprocal (men aren't woman editors here).
+    _directed = {
+        (r.editor_id, r.author_id): r.questions
+        for r in women_pairs.itertuples(index=False)
+    }
+    _recip = {}
+    for (_e, _a), _n in _directed.items():
+        _key = (_e, _a) if _e < _a else (_a, _e)
+        _recip.setdefault(_key, {})[(_e, _a)] = _n
+    _recip_rows = []
+    for (_i, _j), _d in _recip.items():
+        _ij, _ji = _d.get((_i, _j), 0), _d.get((_j, _i), 0)
+        if _ij > 0 and _ji > 0:
+            _recip_rows.append([_id_name.get(_i), _id_name.get(_j), _ij, _ji, _ij + _ji])
+    reciprocal_women = (
+        pd.DataFrame(
+            _recip_rows,
+            columns=["person_a", "person_b", "a_edits_b", "b_edits_a", "total"],
+        )
+        .sort_values("total", ascending=False)
+        .reset_index(drop=True)
+    )
+    return men_pairs, reciprocal_women, women_pairs
 
 
 @app.cell
-def _(men_pairs, mo, pretty, women_pairs):
+def _(men_pairs, mo, pretty, reciprocal_women, women_pairs):
     _cols = ["editor", "author", "questions"]
     mo.vstack(
         [
@@ -1441,6 +1481,15 @@ def _(men_pairs, mo, pretty, women_pairs):
             mo.ui.table(
                 pretty(men_pairs.head(40)[_cols]),
                 label="Top woman-editor ↔ man-author pairs",
+            ),
+            mo.md(
+                "**Reciprocal women** — pairs who edit *each other*. "
+                "`a_edits_b` = questions A edited that B wrote, and vice versa, "
+                "showing who edits whom more."
+            ),
+            mo.ui.table(
+                pretty(reciprocal_women.head(40)),
+                label="Reciprocal woman ↔ woman pairs (both directions)",
             ),
         ]
     )
