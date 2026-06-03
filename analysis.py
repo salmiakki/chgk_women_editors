@@ -113,7 +113,8 @@ def _(mo):
     and what is their gender?* Plus a structural look at how packs map to
     tournaments.
 
-    *Prepared for Lesha Pak, using GotQuestions ([gotquestions.online](https://gotquestions.online)) data.*
+    *Prepared for Lesha Pak, using GotQuestions ([gotquestions.online](https://gotquestions.online)) data.
+    Source & docs: [github.com/salmiakki/chgk_women_editors](https://github.com/salmiakki/chgk_women_editors).*
 
     *Note: this analysis uses only two genders (`HE` / `SE`) because that is the
     only gender information the source data records. No exclusion is intended —
@@ -1365,6 +1366,84 @@ def _(alt, man_editor_breakdown, mo):
         )
     )
     mo.ui.altair_chart(chart_distinct)
+    return
+
+
+@app.cell
+def _(mo):
+    mo.md("""
+    ## 8. Frequent collaborator pairs
+
+    Recurring **(woman editor → author)** partnerships: within tours a woman
+    edited, which authors supply questions again and again (counting questions
+    per pair, excluding her own). Split by author gender (corrected) — the most
+    frequent woman-editor ↔ **woman-author** pairs and woman-editor ↔
+    **man-author** pairs.
+    """)
+    return
+
+
+@app.cell
+def _(WOMAN, gender_fix, packs, pd):
+    _TEAM = {"Команда", "Команды", "Сборная", "Дуэт", "Группа", "Клуб", "Гильдия", "Лига", "Дети"}
+
+    def _is_person(n):
+        t = (n or "").split()
+        return bool(t) and t[0] not in _TEAM and "«" not in n
+
+    _rows = []
+    for _pk in packs:
+        for _t in _pk.get("tours", []):
+            _weds = [
+                (e["id"], e.get("name"))
+                for e in _t.get("editors", [])
+                if gender_fix.get(e.get("name"), e.get("gender")) == WOMAN
+            ]
+            if not _weds:
+                continue
+            for _q in _t.get("questions", []):
+                for _a in _q.get("authors", []) or []:
+                    _aid, _an = _a.get("id"), _a.get("name")
+                    if not _is_person(_an):
+                        continue
+                    _ag = gender_fix.get(_an, _a.get("gender"))
+                    for _eid, _en in _weds:
+                        if _aid != _eid:
+                            _rows.append((_en, _an, _ag))
+    collab_pairs = (
+        pd.DataFrame(_rows, columns=["editor", "author", "author_gender"])
+        .groupby(["editor", "author", "author_gender"])
+        .size()
+        .rename("questions")
+        .reset_index()
+        .sort_values("questions", ascending=False)
+        .reset_index(drop=True)
+    )
+    women_pairs = collab_pairs[collab_pairs.author_gender == WOMAN].reset_index(drop=True)
+    men_pairs = collab_pairs[collab_pairs.author_gender == "HE"].reset_index(drop=True)
+    return men_pairs, women_pairs
+
+
+@app.cell
+def _(men_pairs, mo, pretty, women_pairs):
+    _cols = ["editor", "author", "questions"]
+    mo.vstack(
+        [
+            mo.md(
+                f"**{len(women_pairs)}** distinct woman-editor ↔ woman-author pairs, "
+                f"**{len(men_pairs)}** woman-editor ↔ man-author pairs "
+                "(in woman-edited tours). Top 40 each by shared questions."
+            ),
+            mo.ui.table(
+                pretty(women_pairs.head(40)[_cols]),
+                label="Top woman-editor ↔ woman-author pairs",
+            ),
+            mo.ui.table(
+                pretty(men_pairs.head(40)[_cols]),
+                label="Top woman-editor ↔ man-author pairs",
+            ),
+        ]
+    )
     return
 
 
