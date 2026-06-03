@@ -35,6 +35,7 @@ OUT_REMAINING = OUTPUT_DIR / "mislabels_remaining.csv"
 OUT_CORRECTED_TXT = OUTPUT_DIR / "mislabels_corrected.txt"
 OUT_REMAINING_TXT = OUTPUT_DIR / "mislabels_remaining.txt"
 OUT_WOMEN_AUTHORS = OUTPUT_DIR / "women_authors.csv"
+OUT_MISLABELED_WOMEN = OUTPUT_DIR / "mislabeled_women.csv"
 
 # Female patronymic suffixes used to pull a patronymic token out of a full name.
 # Only female forms (these are women): male-form -ович/-евич are *surname*
@@ -112,13 +113,13 @@ def man_surname(s: str) -> bool:
 
 def collect_people():
     """Tally each person: total appearances, gender tag(s), and per-role counts
-    (questions authored vs. editor roles held). Also tracks question authors by
-    id (id -> name counter, gender tags, question count)."""
+    (questions authored vs. editor roles held). Also tracks everyone by id
+    (id -> name counter, gender tags, author-question + editor-role counts)."""
     appearances: collections.Counter = collections.Counter()
     author_q: collections.Counter = collections.Counter()
     editor_roles: collections.Counter = collections.Counter()
     tags: dict = collections.defaultdict(set)
-    authors_by_id: dict = {}
+    people_by_id: dict = {}
 
     def add(people, *, role):
         for p in people or []:
@@ -129,16 +130,18 @@ def collect_people():
             tags[name].add(p.get("gender"))
             if role == "author":
                 author_q[name] += 1
-                aid = p.get("id")
-                if aid is not None:
-                    rec = authors_by_id.setdefault(
-                        aid, {"names": collections.Counter(), "genders": set(), "q": 0}
-                    )
-                    rec["names"][name] += 1
-                    rec["genders"].add(p.get("gender"))
-                    rec["q"] += 1
             else:
                 editor_roles[name] += 1
+            aid = p.get("id")
+            if aid is not None:
+                rec = people_by_id.setdefault(
+                    aid,
+                    {"names": collections.Counter(), "genders": set(),
+                     "author_q": 0, "editor_roles": 0},
+                )
+                rec["names"][name] += 1
+                rec["genders"].add(p.get("gender"))
+                rec["author_q" if role == "author" else "editor_roles"] += 1
 
     for path in sorted(DATA_PACKS.glob("*.json")):
         pk = json.loads(path.read_text(encoding="utf-8"))
@@ -148,7 +151,7 @@ def collect_people():
             for q in tour.get("questions", []):
                 add(q.get("authors"), role="author")
                 add(q.get("editors"), role="editor")
-    return appearances, tags, author_q, editor_roles, authors_by_id
+    return appearances, tags, author_q, editor_roles, people_by_id
 
 
 def classify(appearances, tags):
@@ -194,7 +197,7 @@ def main() -> None:
     if not DATA_PACKS.exists() or not any(DATA_PACKS.glob("*.json")):
         raise SystemExit("No packs found. Run `download.py packs` first.")
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    appearances, tags, author_q, editor_roles, authors_by_id = collect_people()
+    appearances, tags, author_q, editor_roles, people_by_id = collect_people()
     rows = classify(appearances, tags)
 
     # Corrected list — every flagged person (the gender flips the analysis
@@ -227,25 +230,33 @@ def main() -> None:
         w.writerow(["name", "appearances", "author_questions", "editor_roles"])
         w.writerows(remaining)
 
-    # Women authors — everyone who authored a question and is a woman after
-    # correction (raw SE, or a flagged woman_tagged_HE). One row per author id,
-    # name split into first / patronymic / last, sorted by last name.
+    # Two rosters keyed by person id, columns id / last_name / first_name,
+    # sorted by last name. A woman = raw SE, or flagged woman_tagged_HE.
+    #   women_authors.csv   — women who authored >=1 question
+    #   mislabeled_women.csv — women recovered via HE->SE (editors AND authors)
     flagged_women = {r[3] for r in rows if r[0] == "woman_tagged_HE"}
-    wa_rows = []
-    for aid, rec in authors_by_id.items():
+
+    def row_for(aid, name):
+        first, _patronymic, last = split_name(name)
+        return [aid, last, first]
+
+    wa_rows, ml_rows = [], []
+    for aid, rec in people_by_id.items():
         name = rec["names"].most_common(1)[0][0]
         if is_non_person(name):
             continue
-        corrected_woman = ("SE" in rec["genders"]) or (name in flagged_women)
-        if not corrected_woman:
-            continue
-        first, patronymic, last = split_name(name)
-        wa_rows.append([aid, first, patronymic, last, name])
-    wa_rows.sort(key=lambda r: (r[3], r[1]))  # last name, then first name
-    with OUT_WOMEN_AUTHORS.open("w", newline="", encoding="utf-8") as fh:
-        w = csv.writer(fh)
-        w.writerow(["id", "first_name", "patronymic", "last_name", "full_name"])
-        w.writerows(wa_rows)
+        is_woman = ("SE" in rec["genders"]) or (name in flagged_women)
+        if is_woman and rec["author_q"] > 0:
+            wa_rows.append(row_for(aid, name))
+        if name in flagged_women:  # corrected from HE -> SE
+            ml_rows.append(row_for(aid, name))
+    wa_rows.sort(key=lambda r: (r[1], r[2]))  # last, then first name
+    ml_rows.sort(key=lambda r: (r[1], r[2]))
+    for path, data in ((OUT_WOMEN_AUTHORS, wa_rows), (OUT_MISLABELED_WOMEN, ml_rows)):
+        with path.open("w", newline="", encoding="utf-8") as fh:
+            w = csv.writer(fh)
+            w.writerow(["id", "last_name", "first_name"])
+            w.writerows(data)
 
     # Plain-text name lists (one per line), same order as the CSVs.
     OUT_CORRECTED_TXT.write_text(
@@ -262,9 +273,9 @@ def main() -> None:
         f"Scanned {n_packs} packs. "
         f"Corrected (woman-tagged-HE: {n_woman}, man-tagged-SE: {n_man}). "
         f"Remaining HE (unflagged): {len(remaining)}. "
-        f"Women authors: {len(wa_rows)}.\n"
+        f"Women authors: {len(wa_rows)}; mislabeled women (incl. editors): {len(ml_rows)}.\n"
         f"Wrote mislabels_corrected.csv/.txt, mislabels_remaining.csv/.txt, "
-        f"women_authors.csv to {OUTPUT_DIR.name}/"
+        f"women_authors.csv, mislabeled_women.csv to {OUTPUT_DIR.name}/"
     )
 
 

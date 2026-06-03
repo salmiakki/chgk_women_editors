@@ -79,9 +79,10 @@ likely mislabels. It writes three CSVs into `output/`:
 - `mislabels_remaining.csv` — people still tagged `HE` that were *not* flagged
   (the review queue for misses the heuristic can't catch, e.g. non-Slavic
   surnames like `-дзе`, `-ко`, indeclinable).
-- `women_authors.csv` — every question author who is a woman after correction,
-  one row per id, name split into `first_name` / `patronymic` / `last_name`,
-  sorted by last name.
+- `women_authors.csv` — every question author who is a woman after correction
+  (raw `SE` or corrected `HE→SE`): `id, last_name, first_name`, sorted by last name.
+- `mislabeled_women.csv` — women recovered via the `HE→SE` correction (editors
+  **and** authors): `id, last_name, first_name`.
 
 Team/group names (`Команда …`, `Сборная …`, quoted `«…»`) are treated as
 non-persons and never flagged.
@@ -162,7 +163,8 @@ output/mislabels_corrected.txt    # same, names only
 output/mislabels_remaining.csv    # still-HE, unflagged (review queue)
 output/mislabels_remaining.txt    # same, names only
 output/people.csv                 # canonical people table (id, name parts, raw gender, roles)
-output/women_authors.csv          # women question authors (id, first/patronymic/last)
+output/women_authors.csv          # women question authors (id, last_name, first_name)
+output/mislabeled_women.csv       # women recovered via HE→SE (editors + authors)
 output/women_editors_report.html  # generated static report
 ```
 
