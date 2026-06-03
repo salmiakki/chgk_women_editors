@@ -1504,6 +1504,86 @@ def _(men_pairs, mo, pretty, reciprocal_women, women_pairs):
     return
 
 
+@app.cell
+def _(mo):
+    mo.md("""
+    ## 9. Co-editor pairs (≥ 1 woman)
+
+    People who **edit the same tour together**, counted by number of tours
+    co-edited — restricted to pairs with at least one woman (corrected). Matched
+    by id; split into woman ↔ woman and woman ↔ man co-editor pairs.
+    """)
+    return
+
+
+@app.cell
+def _(WOMAN, gender_fix, packs, pd):
+    _TEAM = {"Команда", "Команды", "Сборная", "Дуэт", "Группа", "Клуб", "Гильдия", "Лига", "Дети"}
+
+    def _is_person(n):
+        t = (n or "").split()
+        return bool(t) and t[0] not in _TEAM and "«" not in n
+
+    _pair_tours = {}
+    _id_name, _id_gender = {}, {}
+    for _pk in packs:
+        for _t in _pk.get("tours", []):
+            _eds = {}
+            for e in _t.get("editors", []):
+                _eid, _en = e.get("id"), e.get("name")
+                if _eid is None or not _is_person(_en):
+                    continue
+                _g = gender_fix.get(_en, e.get("gender"))
+                _id_name.setdefault(_eid, _en)
+                _id_gender.setdefault(_eid, _g)
+                _eds[_eid] = _g
+            _ids = list(_eds)
+            for _i in range(len(_ids)):
+                for _j in range(_i + 1, len(_ids)):
+                    _a, _b = _ids[_i], _ids[_j]
+                    if _eds[_a] != WOMAN and _eds[_b] != WOMAN:
+                        continue  # need at least one woman
+                    _key = (_a, _b) if _a < _b else (_b, _a)
+                    _pair_tours[_key] = _pair_tours.get(_key, 0) + 1
+    _rows = []
+    for (_a, _b), _n in _pair_tours.items():
+        _both_women = _id_gender[_a] == WOMAN and _id_gender[_b] == WOMAN
+        _rows.append(
+            [_id_name[_a], _id_name[_b], "woman ↔ woman" if _both_women else "woman ↔ man", _n]
+        )
+    coeditor_pairs = (
+        pd.DataFrame(_rows, columns=["person_a", "person_b", "kind", "tours"])
+        .sort_values("tours", ascending=False)
+        .reset_index(drop=True)
+    )
+    coed_ww = coeditor_pairs[coeditor_pairs.kind == "woman ↔ woman"].reset_index(drop=True)
+    coed_wm = coeditor_pairs[coeditor_pairs.kind == "woman ↔ man"].reset_index(drop=True)
+    return coed_wm, coed_ww
+
+
+@app.cell
+def _(coed_wm, coed_ww, mo, pretty):
+    _cols = ["person_a", "person_b", "tours"]
+    mo.vstack(
+        [
+            mo.md(
+                f"**{len(coed_ww)}** woman ↔ woman co-editor pairs, "
+                f"**{len(coed_wm)}** woman ↔ man co-editor pairs. "
+                "Top 40 each by tours co-edited."
+            ),
+            mo.ui.table(
+                pretty(coed_ww.head(40)[_cols]),
+                label="Top woman ↔ woman co-editor pairs",
+            ),
+            mo.ui.table(
+                pretty(coed_wm.head(40)[_cols]),
+                label="Top woman ↔ man co-editor pairs",
+            ),
+        ]
+    )
+    return
+
+
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
