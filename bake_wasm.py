@@ -31,6 +31,10 @@ def person(p: dict) -> dict:
 
 
 def reduce_pack(pk: dict) -> dict:
+    # Only the fields analysis.py reads. Question ids/numbers are dropped (the
+    # notebook synthesizes ids on load) — they're unique ints that don't
+    # compress, so removing them ~halves the gzipped payload. Tournaments keep
+    # just the id (the type breakdown was removed).
     return {
         "id": pk["id"],
         "title": pk.get("title", ""),
@@ -38,20 +42,12 @@ def reduce_pack(pk: dict) -> dict:
         "tours": [
             {
                 "id": t["id"],
-                "number": t.get("number"),
                 "editors": [person(e) for e in t.get("editors", [])],
                 "questions": [
                     {
-                        "id": q["id"],
                         "authors": [person(a) for a in q.get("authors", []) or []],
                         "tournaments": [
-                            {
-                                "id": tr["id"],
-                                "typeoft": {
-                                    "title": (tr.get("typeoft") or {}).get("title")
-                                },
-                            }
-                            for tr in q.get("tournaments", []) or []
+                            {"id": tr["id"]} for tr in q.get("tournaments", []) or []
                         ],
                     }
                     for q in t.get("questions", [])

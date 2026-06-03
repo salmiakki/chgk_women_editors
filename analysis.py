@@ -157,6 +157,14 @@ def _(PACKS_DIR, gzip, json, mo, urllib):
         _url = str(mo.notebook_location() / "public" / "packs_reduced.json.gz")
         _raw = urllib.request.urlopen(_url).read()
         packs = json.loads(gzip.decompress(_raw).decode("utf-8"))
+        # The reduced dataset drops question ids (they don't compress); the
+        # question-id-based aggregations just need them unique, so synthesize.
+        _qid = 0
+        for _pk in packs:
+            for _t in _pk.get("tours", []):
+                for _q in _t.get("questions", []):
+                    _q["id"] = _qid
+                    _qid += 1
     return (packs,)
 
 
