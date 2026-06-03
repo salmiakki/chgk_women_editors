@@ -425,7 +425,12 @@ def _(CORRECT_TIERS, gender_fix, mislabels_df, mo, pretty):
                 shown alongside.
                 """
             ),
-            mo.ui.table(pretty(mislabels_df), label="Suspected mislabels (all tiers)"),
+            mo.ui.table(
+                pretty(
+                    mislabels_df[["name", "confidence", "author_questions", "editor_roles"]]
+                ),
+                label="Suspected mislabels (all tiers)",
+            ),
         ]
     )
     return
