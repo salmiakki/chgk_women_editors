@@ -161,6 +161,7 @@ output/mislabels_corrected.csv    # the HE→SE flips, with role counts (read by
 output/mislabels_corrected.txt    # same, names only
 output/mislabels_remaining.csv    # still-HE, unflagged (review queue)
 output/mislabels_remaining.txt    # same, names only
+output/people.csv                 # canonical people table (id, name parts, raw gender, roles)
 output/women_authors.csv          # women question authors (id, first/patronymic/last)
 output/women_editors_report.html  # generated static report
 ```

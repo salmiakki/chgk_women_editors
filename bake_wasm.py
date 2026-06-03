@@ -17,6 +17,7 @@ from __future__ import annotations
 import gzip
 import json
 import shutil
+from datetime import datetime, timezone
 from pathlib import Path
 
 HERE = Path(__file__).parent
@@ -76,6 +77,12 @@ def main() -> None:
         shutil.copyfile(MISLABELS, PUBLIC / "mislabels_corrected.csv")
     else:
         print("! output/mislabels_corrected.csv missing — run `just mislabels` first")
+
+    # Build timestamp the served notebook displays (cells run in-browser, so
+    # they can't see build time otherwise).
+    (PUBLIC / "generated_at.txt").write_text(
+        datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"), encoding="utf-8"
+    )
 
     print(
         f"Baked {len(reduced)} packs → {PUBLIC}/packs_reduced.json.gz "

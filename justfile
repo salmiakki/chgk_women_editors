@@ -41,6 +41,10 @@ download-all:
 
 # --- Analyse ----------------------------------------------------------------
 
+# Build the canonical people table (one row per id) → output/people.csv
+people:
+    uv run build_people.py
+
 # Regenerate the output/mislabels_*.csv/.txt lists from the downloaded packs
 mislabels:
     uv run detect_mislabels.py

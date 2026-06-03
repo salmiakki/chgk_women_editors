@@ -119,6 +119,22 @@ def _(mo):
 
 
 @app.cell
+def _(mo, urllib):
+    # When was this built? For the static report, cells run at export time, so
+    # now() is the regeneration time. For the WASM build (cells run in the
+    # viewer's browser) we read a timestamp baked into public/ at build time.
+    from datetime import datetime, timezone
+
+    try:
+        _u = str(mo.notebook_location() / "public" / "generated_at.txt")
+        _generated = urllib.request.urlopen(_u).read().decode().strip()
+    except Exception:
+        _generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    mo.md(f"*Regenerated: {_generated}*")
+    return
+
+
+@app.cell
 def _(PACKS_DIR, gzip, json, mo, urllib):
     # Load pack payloads. Locally: the full JSON in data/packs/. When served as
     # a kernel-less WASM notebook (no local files), fall back to the baked,
