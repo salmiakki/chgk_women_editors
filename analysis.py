@@ -114,6 +114,10 @@ def _(mo):
     tournaments.
 
     *Prepared for Lesha Pak, using GotQuestions ([gotquestions.online](https://gotquestions.online)) data.*
+
+    *Note: this analysis uses only two genders (`HE` / `SE`) because that is the
+    only gender information the source data records. No exclusion is intended —
+    apologies to everyone this fails to represent.*
     """)
     return
 
@@ -524,7 +528,9 @@ def _(mo, packs_df, pd, pretty, tournaments_df):
             mo.md(
                 f"**Packs:** {len(packs_df)} "
                 f"({int(packs_df.woman_edited.sum())} woman-edited) &nbsp;|&nbsp; "
-                f"**distinct tournaments:** {n_distinct} "
+                f"**tours:** {int(packs_df.n_tours.sum())} "
+                f"({int(packs_df[packs_df.woman_edited].n_tours.sum())} in woman-edited packs) "
+                f"&nbsp;|&nbsp; **distinct tournaments:** {n_distinct} "
                 f"({n_distinct_w} in woman-edited packs) &nbsp;|&nbsp; "
                 f"packs with ≥2 tournaments: {int((packs_df.n_tournaments >= 2).sum())} "
                 f"&nbsp;|&nbsp; with 0: {int((packs_df.n_tournaments == 0).sum())}"
