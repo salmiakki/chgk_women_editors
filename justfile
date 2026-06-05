@@ -39,6 +39,12 @@ download: listing packs
 download-all:
     uv run download.py all --delay {{delay}} --scope all
 
+# Refresh the index and fetch only newly-added packs (keeps existing data/packs/)
+refresh:
+    rm -f data/listing/*.json
+    uv run download.py listing --delay {{delay}}
+    uv run download.py packs --delay {{delay}} --scope all
+
 # --- Analyse ----------------------------------------------------------------
 
 # Build the canonical people table (one row per id) → output/people.csv

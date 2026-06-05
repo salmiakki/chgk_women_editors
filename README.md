@@ -44,8 +44,15 @@ just listing            # phase 1: all index pages → data/listing/
 just packs              # phase 2: woman-edited packs → data/packs/
 just packs-all          # phase 2 (full): EVERY pack → data/packs/
 just download-all       # listing + all pack details, in order
+just refresh            # re-fetch the index + download only NEW packs (keeps existing)
 just status             # how much is downloaded so far
 ```
+
+To pick up packs added since your last download, use `just refresh`: it clears
+the cached index (`data/listing/`), re-fetches it, then downloads only the pack
+ids you don't already have — existing `data/packs/` files are never overwritten.
+(Plain `just rebuild` / `download-all` reuse the cached index and won't discover
+new packs.)
 
 `just rebuild` is the one-shot: it runs `download-all` → `mislabels` → `report`
 in order (all resumable, so re-running only fetches what's missing).
