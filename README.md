@@ -11,11 +11,12 @@ how packs map to tournaments.
 (marimo + Pyodide) that runs entirely in the browser, with a baked reduced
 dataset. Rebuild & redeploy with `just deploy`.
 
-The site exposes a clean Django REST API, so no HTML parsing is needed:
+The data lives in the site's server-rendered pages (the JSON API is now
+JWT-locked — see [Access](#access-no-auth-needed)):
 
-- `GET /api/packs/?page=N` — paginated pack index (~6,701 packs). Each entry
-  already carries its editors with a `gender` field.
-- `GET /api/pack/<id>` — a full pack: tours → questions, with each question's
+- `/?page=N` — paginated pack index (~6,700 packs). Each entry carries its
+  editors with a `gender` field.
+- `/pack/<id>` — a full pack: tours → questions, with each question's
   `authors`, `editors`, and `tournaments` (editors/authors are gendered).
 
 Gender codes: **`HE`** = man, **`SE`** = woman. (Hand-entered and imperfect —
@@ -32,29 +33,17 @@ Requires [`uv`](https://docs.astral.sh/uv/) and (optionally)
 [`just`](https://github.com/casey/just). Every recipe just wraps a `uv run`
 command, so you can run those directly if you prefer.
 
-## Authentication
+## Access (no auth needed)
 
-The API is now **JWT-protected** (`WWW-Authenticate: JWT`). Requests need an
-`Authorization: JWT <token>` header — set the token via env var:
+The JSON API (`/api/…`) is now **JWT-protected** (401). But the site is a
+**server-side-rendered** Next.js app: the server makes the authenticated API
+call and embeds the data in the page HTML — both as markup and as the
+React-Flight `__next_f` payload. So the downloader scrapes the **public pages**
+(plain HTTP, no token, no browser) and parses the flight payload out of the
+HTML:
 
-```bash
-export GOTQUESTIONS_TOKEN='<jwt>'        # download.py sends `JWT <token>`
-```
-
-Get a token either way:
-
-- **Login helper** (NextAuth credentials provider):
-  ```bash
-  export GOTQUESTIONS_USER='you@example.com'   # email or username
-  export GOTQUESTIONS_PASS='...'
-  just login            # prints an `export GOTQUESTIONS_TOKEN=…` line
-  ```
-  (Google-only accounts can't use this — needs a site username/password.)
-- **From the browser**: log in, open DevTools → Network → any `/api/pack…`
-  request → copy the `Authorization` header value.
-
-JWTs expire, so re-fetch when downloads start returning 401. The downloader
-fails fast with a clear message if the token is missing/expired.
+- `/?page=N` → the paginated index (same `{results, count}` the API returned),
+- `/pack/<id>` → the full pack (identical schema to the old API payload).
 
 ## 1. Download (`download.py`)
 
@@ -183,8 +172,7 @@ PDF. For a Jupyter notebook: `uv run marimo export ipynb analysis.py -o analysis
 ## Layout
 
 ```
-download.py                       # phase 1 + 2 downloader (JWT auth via env var)
-login.py                          # fetch an API JWT via NextAuth credentials login
+download.py                       # phase 1 + 2 downloader (scrapes SSR pages)
 detect_mislabels.py               # writes the output/*.csv mislabel lists
 analysis.py                       # marimo analyser
 justfile                          # task runner (just --list)

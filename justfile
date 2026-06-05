@@ -20,10 +20,6 @@ sync:
 
 # --- Download ---------------------------------------------------------------
 
-# Get an API JWT via NextAuth credentials login (set GOTQUESTIONS_USER / _PASS)
-login:
-    uv run login.py
-
 # Phase 1: download the paginated pack index (resumable)
 listing:
     uv run download.py listing --delay {{delay}}
