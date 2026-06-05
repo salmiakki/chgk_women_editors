@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import random
 import sys
 import time
@@ -55,6 +56,20 @@ USER_AGENT = (
 def make_session() -> niquests.Session:
     s = niquests.Session()
     s.headers.update({"User-Agent": USER_AGENT, "Accept": "application/json"})
+    # The API is JWT-protected (WWW-Authenticate: JWT). Provide a token via the
+    # GOTQUESTIONS_TOKEN env var (the JWT only, no prefix) or GOTQUESTIONS_AUTH
+    # for a full Authorization header value. Get a token with `login.py` or from
+    # your browser (DevTools → an /api/pack request → Authorization header).
+    token = os.environ.get("GOTQUESTIONS_TOKEN")
+    auth = os.environ.get("GOTQUESTIONS_AUTH") or (f"JWT {token}" if token else None)
+    if auth:
+        s.headers["Authorization"] = auth
+    else:
+        print(
+            "! No token set — the API now requires auth. Set GOTQUESTIONS_TOKEN "
+            "(see login.py) or you'll get 401s.",
+            file=sys.stderr,
+        )
     return s
 
 
@@ -69,8 +84,17 @@ def get_json(session: niquests.Session, url: str, *, retries: int = 6) -> dict:
     for attempt in range(retries):
         try:
             resp = session.get(url, timeout=60)
+            if resp.status_code in (401, 403):
+                sys.exit(
+                    f"\nAuth failed ({resp.status_code}) on {url}.\n"
+                    "The API requires a JWT. Set a fresh GOTQUESTIONS_TOKEN "
+                    "(tokens expire) — run `uv run login.py`, or copy one from "
+                    "your browser's DevTools."
+                )
             resp.raise_for_status()
             return resp.json()
+        except SystemExit:
+            raise
         except Exception as exc:  # noqa: BLE001 - retry anything transient
             if attempt == retries - 1:
                 raise

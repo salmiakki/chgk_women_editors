@@ -32,6 +32,30 @@ Requires [`uv`](https://docs.astral.sh/uv/) and (optionally)
 [`just`](https://github.com/casey/just). Every recipe just wraps a `uv run`
 command, so you can run those directly if you prefer.
 
+## Authentication
+
+The API is now **JWT-protected** (`WWW-Authenticate: JWT`). Requests need an
+`Authorization: JWT <token>` header — set the token via env var:
+
+```bash
+export GOTQUESTIONS_TOKEN='<jwt>'        # download.py sends `JWT <token>`
+```
+
+Get a token either way:
+
+- **Login helper** (NextAuth credentials provider):
+  ```bash
+  export GOTQUESTIONS_USER='you@example.com'   # email or username
+  export GOTQUESTIONS_PASS='...'
+  just login            # prints an `export GOTQUESTIONS_TOKEN=…` line
+  ```
+  (Google-only accounts can't use this — needs a site username/password.)
+- **From the browser**: log in, open DevTools → Network → any `/api/pack…`
+  request → copy the `Authorization` header value.
+
+JWTs expire, so re-fetch when downloads start returning 401. The downloader
+fails fast with a clear message if the token is missing/expired.
+
 ## 1. Download (`download.py`)
 
 Two resumable, throttled phases. Resume is file-based: a pack whose
@@ -159,7 +183,8 @@ PDF. For a Jupyter notebook: `uv run marimo export ipynb analysis.py -o analysis
 ## Layout
 
 ```
-download.py                       # phase 1 + 2 downloader
+download.py                       # phase 1 + 2 downloader (JWT auth via env var)
+login.py                          # fetch an API JWT via NextAuth credentials login
 detect_mislabels.py               # writes the output/*.csv mislabel lists
 analysis.py                       # marimo analyser
 justfile                          # task runner (just --list)
